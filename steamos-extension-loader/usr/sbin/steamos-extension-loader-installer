@@ -1,22 +1,37 @@
 #!/usr/bin/env zsh
 set -e
 
+# Persistence enabled - proceed with normal installation to /etc/
 function same {
 	[[ -f $1 ]] && [[ -f $2 ]] && [[ "$(md5sum < $1)" == "$(md5sum < $2)" ]]
 }
 
-if ! [[ -e /etc/atomic-update.conf.d ]]; then
-	mkdir /etc/atomic-update.conf.d
+# Read persistence config (default: true for backwards compatibility)
+ENABLE_PERSISTENCE=true
+CONFIG_FILE="/var/lib/steamos-extensions-config/loader"
+if [[ -f "$CONFIG_FILE" ]]; then
+	while IFS='=' read -r key value; do
+		[[ "$key" == "enable_persistence" ]] && ENABLE_PERSISTENCE="$value"
+	done < "$CONFIG_FILE"
 fi
 
-if ! same \
-	/usr/share/steamos-extension-loader-atomic-update.conf \
-	/etc/atomic-update.conf.d/steamos-extension-loader.conf
-then
-	echo mkdir -p /etc/atomic-update.conf.d
-	cp \
-		/usr/share/steamos-extension-loader-atomic-update.conf \
-		/etc/atomic-update.conf.d/steamos-extension-loader.conf
+if [[ "$ENABLE_PERSISTENCE" == "false" ]]; then
+	# Persistence disabled - clean up /etc/ files if they exist
+	rm -f /etc/atomic-update.conf.d/steamos-extension-loader.conf
+else
+    if ! [[ -e /etc/atomic-update.conf.d ]]; then
+        mkdir /etc/atomic-update.conf.d
+    fi
+
+    if ! same \
+        /usr/share/steamos-extension-loader-atomic-update.conf \
+        /etc/atomic-update.conf.d/steamos-extension-loader.conf
+    then
+        echo mkdir -p /etc/atomic-update.conf.d
+        cp \
+            /usr/share/steamos-extension-loader-atomic-update.conf \
+            /etc/atomic-update.conf.d/steamos-extension-loader.conf
+    fi
 fi
 
 if ! same \

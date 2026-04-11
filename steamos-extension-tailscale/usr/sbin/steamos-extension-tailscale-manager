@@ -1,0 +1,164 @@
+#!/usr/bin/env bash
+# Manager script for Tailscale installation and updates
+# Called by steamos-extension-tailscale.service on each boot (no params).
+# Can also be called with flags for version checking and updates.
+#
+# Usage:
+#   steamos-extension-tailscale-manager                   # normal boot install (idempotent)
+#   steamos-extension-tailscale-manager --get-current-version
+#   steamos-extension-tailscale-manager --get-latest-version
+#   steamos-extension-tailscale-manager --update
+#   steamos-extension-tailscale-manager --help
+set -eu -o pipefail
+
+INSTALL_SCRIPT="/usr/share/steamos-extension-tailscale/tailscale.sh"
+TAILSCALE_BIN="/opt/tailscale/tailscaled"
+STATE_DIR="/var/lib/steamos-extensions-state"
+UPSTREAM_CACHE_FILE="$STATE_DIR/tailscale-upstream-version"
+CACHE_TTL_SECONDS=$((24 * 60 * 60))  # 24 hours
+
+# Function to get the current installed version
+get_current_version() {
+    if [[ -x "$TAILSCALE_BIN" ]]; then
+        "$TAILSCALE_BIN" --version 2>/dev/null | head -1 | awk '{print $1}' || true
+    fi
+}
+
+# Function to check if cache is still valid (within 24 hours)
+is_cache_valid() {
+    if [[ ! -f "$UPSTREAM_CACHE_FILE" ]]; then
+        return 1
+    fi
+
+    local cached_timestamp
+    cached_timestamp=$(head -1 "$UPSTREAM_CACHE_FILE" 2>/dev/null || echo "0")
+    local current_timestamp
+    current_timestamp=$(date +%s)
+    local age=$((current_timestamp - cached_timestamp))
+
+    [[ $age -lt $CACHE_TTL_SECONDS ]]
+}
+
+# Function to get the latest available version from upstream
+# Uses cache if available and fresh (< 24 hours old)
+get_latest_version() {
+    # Try to use cached version if still valid
+    if is_cache_valid; then
+        tail -1 "$UPSTREAM_CACHE_FILE" 2>/dev/null && return 0
+    fi
+
+    # Cache miss or expired - fetch from upstream
+    local latest_tarball
+    latest_tarball="$(curl -sf 'https://pkgs.tailscale.com/stable/?mode=json' | jq -r .Tarballs.amd64)"
+    local version
+    version=$(echo "$latest_tarball" | cut -d_ -f2)
+
+    # Update cache with timestamp and version
+    mkdir -p "$STATE_DIR"
+    {
+        date +%s
+        echo "$version"
+    } > "$UPSTREAM_CACHE_FILE"
+
+    echo "$version"
+}
+
+# Function to run the installer
+run_installer() {
+    echo "Running Tailscale installer..."
+    # Change to install script directory so relative paths (e.g., override.conf) work
+    cd "$(dirname "$INSTALL_SCRIPT")"
+    if "$INSTALL_SCRIPT"; then
+        # Invalidate upstream cache after successful install
+        # (next check will fetch fresh version from server)
+        rm -f "$UPSTREAM_CACHE_FILE"
+        return 0
+    else
+        echo "Tailscale installer failed." >&2
+        return 1
+    fi
+}
+
+# Function to display help
+show_help() {
+    cat <<EOF
+Usage: steamos-extension-tailscale-manager [OPTION]
+
+Manager script for Tailscale installation and updates.
+
+OPTIONS:
+    (no arguments)             Run idempotent install check (called by systemd service)
+                               Skips install if Tailscale is already installed.
+
+    --get-current-version      Print the currently installed Tailscale version
+                               (empty string if not installed)
+
+    --get-latest-version       Query upstream for the latest available version
+                               Uses cached result if fetched within the last 24 hours
+                               Requires network access to pkgs.tailscale.com on cache miss
+
+    --update                   Run the Tailscale installer to install or update
+                               to the latest version. Invalidates version cache.
+
+    --help                     Display this help message
+
+CACHING:
+    The latest upstream version is cached for 24 hours in:
+    $UPSTREAM_CACHE_FILE
+
+    Format: Line 1 = unix timestamp, Line 2 = version string
+
+EXAMPLES:
+    # Check/install on boot (idempotent)
+    steamos-extension-tailscale-manager
+
+    # Check current version
+    steamos-extension-tailscale-manager --get-current-version
+
+    # Check for updates (uses cache if recent)
+    current=\$(steamos-extension-tailscale-manager --get-current-version)
+    latest=\$(steamos-extension-tailscale-manager --get-latest-version)
+    if [[ "\$current" != "\$latest" ]]; then
+        echo "Update available: \$current -> \$latest"
+    fi
+
+    # Install or update to latest
+    steamos-extension-tailscale-manager --update
+
+EOF
+}
+
+# Parse command-line arguments
+case "${1:-}" in
+    --get-current-version)
+        get_current_version
+        ;;
+
+    --get-latest-version)
+        get_latest_version
+        ;;
+
+    --update)
+        run_installer
+        ;;
+
+    --help)
+        show_help
+        ;;
+
+    "")
+        # No arguments - normal boot behavior (idempotent install)
+        # If tailscaled is already installed and enabled, skip install
+        if systemctl is-enabled --quiet tailscaled 2>/dev/null && [[ -x "$TAILSCALE_BIN" ]]; then
+            echo "Tailscale is already installed — skipping install."
+            exit 0
+        fi
+        run_installer
+        ;;
+
+    *)
+        echo "Error: Unknown option '$1'" >&2
+        echo "Run 'steamos-extension-tailscale-manager --help' for usage information." >&2
+        exit 1
+        ;;
+esac
