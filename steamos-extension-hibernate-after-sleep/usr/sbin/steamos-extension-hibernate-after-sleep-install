@@ -3,6 +3,7 @@ set -e
 
 TargetSwapFileSizeInGbs=20
 HibernateDelaySec="60min"
+HibernateOnACPower="no"
 FORCE=0
 
 function load_config {
@@ -17,6 +18,12 @@ function load_config {
 		if [[ -n "$value" ]]; then
 			TargetSwapFileSizeInGbs="$value"
 		fi
+
+		value=$(grep -E '^HibernateOnACPower=' "$config_file" | head -1 | cut -d= -f2 | tr -d '"')
+		case "$value" in
+			yes|true)  HibernateOnACPower="yes" ;;
+			no|false)  HibernateOnACPower="no" ;;
+		esac
 	fi
 }
 
@@ -248,11 +255,23 @@ function enable_suspend_hibernate {
 }
 
 function update_sleep_config {
+	# Write to /etc/systemd/sleep.conf.d/ so it takes precedence over
+	# /usr/lib/systemd/sleep.conf.d/ drop-ins (e.g. SteamOS 3.8 disables
+	# hibernation there with "Disabled for 3.8.x cycle").
+	# /etc/ drop-ins always win over /usr/lib/ drop-ins regardless of filename.
+	local dropin_dir="/etc/systemd/sleep.conf.d"
+	local dropin_file="$dropin_dir/hibernate-after-sleep.conf"
+	mkdir -p "$dropin_dir"
 	echo "[Sleep]
 AllowSuspend=yes
 AllowHibernation=yes
 AllowSuspendThenHibernate=yes
-HibernateDelaySec=$HibernateDelaySec" > /etc/systemd/sleep.conf
+HibernateDelaySec=$HibernateDelaySec
+HibernateOnACPower=$HibernateOnACPower" > "$dropin_file"
+	# Migrate away from the old flat-file approach if it exists
+	if [[ -f /etc/systemd/sleep.conf ]]; then
+		rm -f /etc/systemd/sleep.conf
+	fi
 	echo "Configured hibernate delay: $HibernateDelaySec"
 }
 

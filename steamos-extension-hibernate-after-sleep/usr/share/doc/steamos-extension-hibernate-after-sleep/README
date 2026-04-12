@@ -13,7 +13,7 @@ Features
 - Sets up systemd to use suspend-then-hibernate
 - Fixes Bluetooth issues after resume from hibernation
 - Marks boot state as good after successful resume
-- User-configurable hibernation delay
+- User-configurable hibernation delay and AC power behaviour
 
 Configuration
 -------------
@@ -33,18 +33,30 @@ To configure the hibernate delay and swap file size:
 4. Set your desired values:
    - HibernateDelaySec (default: 60min)
    - TargetSwapFileSizeInGbs (default: 20)
+   - HibernateOnACPower (default: no)
 
 5. Rerun the install script to apply changes:
    sudo /usr/sbin/steamos-extension-hibernate-after-sleep-install
 
-Valid time values
------------------
+Configuration parameters
+------------------------
 
-The HibernateDelaySec parameter accepts systemd time span values:
-- Seconds: "30s", "120s"
-- Minutes: "5min", "30min", "60min"
-- Hours: "1h", "2h"
-- Combinations: "1h 30min"
+HibernateDelaySec (default: 60min)
+  How long to wait in suspend before hibernating.
+  Accepts systemd time span values:
+    30s, 120s       (seconds)
+    5min, 30min     (minutes)
+    1h, 2h          (hours)
+    1h 30min        (combinations)
+
+TargetSwapFileSizeInGbs (default: 20)
+  Size of the swap file created for hibernation, in GB.
+  Must be large enough to hold RAM contents (Steam Deck has 16GB RAM).
+
+HibernateOnACPower (default: no)
+  Whether to hibernate after the delay when plugged into AC power.
+  When set to no, the timer only counts down on battery, so the device
+  can suspend indefinitely while charging.
 
 What this extension does
 ------------------------
@@ -78,7 +90,7 @@ If hibernation doesn't work:
    cat /boot/efi/EFI/steamos/grub.cfg | grep resume
 
 3. Check systemd sleep configuration:
-   cat /etc/systemd/sleep.conf
+   systemd-analyze cat-config systemd/sleep.conf
 
 4. Rerun the install script with --force flag:
    sudo /usr/sbin/steamos-extension-hibernate-after-sleep-install --force
@@ -92,3 +104,5 @@ Notes
 - Changes to GRUB or swap file size require a reboot to take effect
 - The extension will preserve existing resume parameters if they match
 - Bluetooth may briefly disconnect after resume (automatically fixed)
+- By default, the hibernate timer only counts down on battery power; the device
+  can suspend indefinitely while charging (configurable via HibernateOnACPower)

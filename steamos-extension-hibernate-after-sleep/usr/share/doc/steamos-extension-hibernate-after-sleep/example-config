@@ -11,3 +11,17 @@ HibernateDelaySec=60min
 # HibernateDelaySec=30min  # Hibernate after 30 minutes of suspend
 # HibernateDelaySec=2h     # Hibernate after 2 hours of suspend
 # HibernateDelaySec=15min  # Hibernate after 15 minutes of suspend
+
+# TargetSwapFileSizeInGbs: Size of the swap file created for hibernation
+# Must be large enough to hold the contents of RAM (Steam Deck has 16GB RAM)
+# Default: 20
+
+#TargetSwapFileSizeInGbs=20
+
+# HibernateOnACPower: Whether to hibernate after the delay when plugged into AC power
+# When set to no, the hibernate timer only counts down when on battery power,
+# allowing the device to suspend indefinitely while charging.
+# Valid values: yes, no
+# Default: no
+
+#HibernateOnACPower=no
