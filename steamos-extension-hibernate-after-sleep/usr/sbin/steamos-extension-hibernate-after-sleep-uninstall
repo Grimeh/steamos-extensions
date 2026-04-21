@@ -33,7 +33,7 @@ systemctl disable --now steamos-extension-hibernate-after-sleep-mark-boot-good.s
 
 echo "Removing suspend link..."
 if [[ -L "/etc/systemd/system/steamos-extension-hibernate-after-sleep-install.service" ]]; then
-    rm -f /etc/systemd/system/systemd-suspend.service
+	rm -f /etc/systemd/system/steamos-extension-hibernate-after-sleep-install.service
 	echo "  Removed"
 else
 	echo "  Not found (skipping)"
@@ -42,53 +42,16 @@ fi
 
 echo ""
 echo "Step 2: Removing sleep configuration..."
-if [[ -f "/etc/systemd/sleep.conf" ]]; then
-	rm -f /etc/systemd/sleep.conf
+sleep_conf_file="/etc/systemd/sleep.conf.d/hibernate-after-sleep.conf"
+if [[ -f $sleep_conf_file ]]; then
+	rm -f $sleep_conf_file
 	echo "  Removed"
 else
 	echo "  Not found (skipping)"
 fi
 
 echo ""
-echo "Step 3: Removing systemd-logind hibernation bypass..."
-override_file="/etc/systemd/system/systemd-logind.service.d/override.conf"
-if [[ -f "$override_file" ]]; then
-	if grep -q "SYSTEMD_BYPASS_HIBERNATION_MEMORY_CHECK" "$override_file"; then
-		temp_file=$(mktemp)
-		in_service_section=0
-
-		while IFS= read -r line; do
-			if [[ "$line" =~ ^\[Service\] ]]; then
-				in_service_section=1
-				echo "$line" >> "$temp_file"
-			elif [[ "$line" =~ ^\[.*\] ]]; then
-				in_service_section=0
-				echo "$line" >> "$temp_file"
-			elif [[ $in_service_section -eq 1 ]] && [[ "$line" =~ ^Environment=SYSTEMD_BYPASS_HIBERNATION_MEMORY_CHECK ]]; then
-				: # Skip this line
-			else
-				echo "$line" >> "$temp_file"
-			fi
-		done < "$override_file"
-
-		if [[ -s "$temp_file" ]] && grep -q "[^[:space:]]" "$temp_file"; then
-			mv "$temp_file" "$override_file"
-			echo "  Removed hibernation bypass (preserved other settings)"
-		else
-			rm -f "$override_file"
-			rmdir /etc/systemd/system/systemd-logind.service.d 2>/dev/null || true
-			rm -f "$temp_file"
-			echo "  Removed override file (was empty)"
-		fi
-	else
-		echo "  Bypass not found in override file (skipping)"
-	fi
-else
-	echo "  Override file not found (skipping)"
-fi
-
-echo ""
-echo "Step 4: Removing GRUB resume parameters..."
+echo "Step 3: Removing GRUB resume parameters..."
 starter=steamenv_boot
 cfg=/boot/efi/EFI/steamos/grub.cfg
 remount=false
@@ -122,7 +85,7 @@ else
 fi
 
 echo ""
-echo "Step 5: Swapfile management..."
+echo "Step 4: Swapfile management..."
 function is_btrfs {
 	local fstype=$(findmnt -no FSTYPE -T /home)
 	[[ "$fstype" == "btrfs" ]]
@@ -172,12 +135,12 @@ else
 fi
 
 echo ""
-echo "Step 6: Reloading systemd..."
+echo "Step 5: Reloading systemd..."
 systemctl daemon-reload
 echo "  Reloaded"
 
 echo ""
-echo "Step 7: Configuration file cleanup..."
+echo "Step 6: Configuration file cleanup..."
 config_file="/var/lib/steamos-extensions-config/hibernate-after-sleep"
 if [[ -f "$config_file" ]]; then
 	read -p "Remove configuration file? [y/N] " -n 1 -r
@@ -193,7 +156,7 @@ else
 fi
 
 echo ""
-echo "Step 8: Removing extension..."
+echo "Step 7: Removing extension..."
 extension_file="/var/lib/extensions/steamos-extension-hibernate-after-sleep.raw"
 if [[ -f "$extension_file" ]]; then
 	rm -f "$extension_file"

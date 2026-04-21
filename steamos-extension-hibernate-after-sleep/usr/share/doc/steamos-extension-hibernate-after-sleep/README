@@ -63,7 +63,7 @@ What this extension does
 
 1. Creates a swap file at /home/swapfile (default: 20GB, configurable)
 2. Configures GRUB to resume from the swap file
-3. Sets up systemd-logind to bypass hibernation memory checks
+3. Sets up systemd-logind to fix hiberation swapfile size check
 4. Enables suspend-then-hibernate behavior
 5. Configures the delay before hibernating (default: 60 minutes)
 6. Sets up services to fix Bluetooth and mark boot state after resume
@@ -92,8 +92,8 @@ If hibernation doesn't work:
 3. Check systemd sleep configuration:
    systemd-analyze cat-config systemd/sleep.conf
 
-4. Rerun the install script with --force flag:
-   sudo /usr/sbin/steamos-extension-hibernate-after-sleep-install --force
+4. Rerun the install script:
+   sudo /usr/sbin/steamos-extension-hibernate-after-sleep-install
 
 5. Reboot the system
 

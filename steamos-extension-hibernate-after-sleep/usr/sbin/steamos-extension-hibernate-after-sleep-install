@@ -4,7 +4,6 @@ set -e
 TargetSwapFileSizeInGbs=20
 HibernateDelaySec="60min"
 HibernateOnACPower="no"
-FORCE=0
 
 function load_config {
 	local config_file="/var/lib/steamos-extensions-config/hibernate-after-sleep"
@@ -184,21 +183,35 @@ function update_grub_resume {
 	touch /tmp/.hibernate-after-sleep-modified
 }
 
-function ensure_logind_bypass {
+function ensure_swapfile_homedir_fix {
+	# This is an improved fix for the issue where systemd-logind cannot access
+	# files under /home which causes the swap space check to fail when it
+	# shouldn't. See details here:
+	# https://wiki.archlinux.org/title/Power_management/Suspend_and_hibernate#No_such_file_or_directory
+
+	# NOTE: This file with the ProtectHome fix is already present for me on
+	# SteamOS 3.7.21 (steamdeck OLED), however can't say with confidence that
+	# this was from an OS update or from something like Decky. So check for
+	# it here just in case.
+	# SteamOS 3.8 comes with preliminary support for hibernation for steamdeck
+	# LCD models, so it seems possible that this now comes set by default in
+	# SteamOS.
+	# This is also why it's missing from the uninstall script.
+
 	local override_dir="/etc/systemd/system/systemd-logind.service.d"
-	local override_file="$override_dir/override.conf"
-	local env_var="Environment=SYSTEMD_BYPASS_HIBERNATION_MEMORY_CHECK=1"
+	local override_file="$override_dir/homedir-override.conf"
+	local protect_home="ProtectHome=read-only"
 	local needs_reload=0
 
 	mkdir -p "$override_dir"
 
 	if [[ ! -f "$override_file" ]]; then
 		echo "[Service]" > "$override_file"
-		echo "$env_var" >> "$override_file"
-        chmod 644 $override_file
+		echo "$protect_home" >> "$override_file"
+		chmod 644 $override_file
 		needs_reload=1
 	else
-		if grep -q "^Environment=SYSTEMD_BYPASS_HIBERNATION_MEMORY_CHECK=1" "$override_file"; then
+		if grep -q "^$protect_home" "$override_file"; then
 			return 0
 		fi
 
@@ -211,7 +224,7 @@ function ensure_logind_bypass {
 				echo "$line" >> "$temp_file"
 			elif [[ "$line" =~ ^\[.*\] ]]; then
 				if [[ $in_service_section -eq 1 ]]; then
-					echo "$env_var" >> "$temp_file"
+					echo "$protect_home" >> "$temp_file"
 					in_service_section=0
 					needs_reload=1
 				fi
@@ -222,23 +235,23 @@ function ensure_logind_bypass {
 		done < "$override_file"
 
 		if [[ $in_service_section -eq 1 ]]; then
-			echo "$env_var" >> "$temp_file"
+			echo "$protect_home" >> "$temp_file"
 			needs_reload=1
 		fi
 
 		if [[ $needs_reload -eq 0 ]]; then
 			echo "" >> "$temp_file"
 			echo "[Service]" >> "$temp_file"
-			echo "$env_var" >> "$temp_file"
+			echo "$protect_home" >> "$temp_file"
 			needs_reload=1
 		fi
 
 		mv "$temp_file" "$override_file"
-        chmod 644 $override_file
+		chmod 644 $override_file
 	fi
 
 	if [[ $needs_reload -eq 1 ]]; then
-		echo "Configuring systemd-logind hibernation bypass"
+		echo "Configuring systemd-logind swapfile homedir fix"
 		systemctl daemon-reload
 	fi
 }
@@ -268,10 +281,6 @@ AllowHibernation=yes
 AllowSuspendThenHibernate=yes
 HibernateDelaySec=$HibernateDelaySec
 HibernateOnACPower=$HibernateOnACPower" > "$dropin_file"
-	# Migrate away from the old flat-file approach if it exists
-	if [[ -f /etc/systemd/sleep.conf ]]; then
-		rm -f /etc/systemd/sleep.conf
-	fi
 	echo "Configured hibernate delay: $HibernateDelaySec"
 }
 
@@ -292,10 +301,6 @@ function cleanup {
 	fi
 }
 
-if [[ "$1" == "--force" ]]; then
-	FORCE=1
-fi
-
 load_config
 
 # Validate disk space before attempting to setup swap
@@ -305,7 +310,7 @@ fi
 
 setup_swapfile
 update_grub_resume
-ensure_logind_bypass
+ensure_swapfile_homedir_fix
 enable_suspend_hibernate
 update_sleep_config
 enable_resume_services

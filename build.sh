@@ -13,7 +13,7 @@ curl 'https://raw.githubusercontent.com/hakavlad/prelockd/refs/heads/master/prel
 chmod 644 steamos-extension-prelockd/usr/share/steamos-extension-prelockd-LICENSE
 chmod 755 steamos-extension-prelockd/usr/sbin/steamos-extension-prelockd
 
-function compress() { 
+function compress() {
 	local target=$1
 	shift
 	mksquashfs $@ $target \
@@ -33,7 +33,7 @@ function compress() {
 
 local build_dir=$(pwd)/build/
 if [[ ! -d $build_dir ]]; then
-    mkdir -p $build_dir
+	mkdir -p $build_dir
 fi
 local temp=$(mktemp -d)
 for dir in steamos-extension-*(/N); do
