@@ -189,14 +189,18 @@ function ensure_swapfile_homedir_fix {
 	# shouldn't. See details here:
 	# https://wiki.archlinux.org/title/Power_management/Suspend_and_hibernate#No_such_file_or_directory
 
-	# NOTE: This file with the ProtectHome fix is already present for me on
-	# SteamOS 3.7.21 (steamdeck OLED), however can't say with confidence that
-	# this was from an OS update or from something like Decky. So check for
-	# it here just in case.
-	# SteamOS 3.8 comes with preliminary support for hibernation for steamdeck
-	# LCD models, so it seems possible that this now comes set by default in
-	# SteamOS.
-	# This is also why it's missing from the uninstall script.
+	# NOTE: This file is already present in steamOS as of 3.7.21
+	# (possibly earlier) and thus this fix most likely isn't actually
+	# required any longer. Leaving it here just in case.
+
+	# UPDATE: In more recent versions (checked 3.9.0 23rd April img) this file
+	# ALSO contains the bypass env var fix to skip the memory check altogether.
+	# The readonly home dir fix should be all that's required for the swap
+	# space check to work correctly. Possibly exploring removing the readonly
+	# home dir setting due to security concerns? Unless there are more issues
+	# beyond the home dir swap space check.
+	# So far my device has not had any issues hibernating with only the
+	# readonly home dir fix, but it hasn't been long enough to say for sure.
 
 	local override_dir="/etc/systemd/system/systemd-logind.service.d"
 	local override_file="$override_dir/homedir-override.conf"
