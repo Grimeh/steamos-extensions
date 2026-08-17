@@ -276,8 +276,16 @@ function update_sleep_config {
 	# /usr/lib/systemd/sleep.conf.d/ drop-ins (e.g. SteamOS 3.8 disables
 	# hibernation there with "Disabled for 3.8.x cycle").
 	# /etc/ drop-ins always win over /usr/lib/ drop-ins regardless of filename.
+
+	# UPDATE: The above assertion regarding drop-in priority is not correct,
+	# not sure where the original author got that info from. All drop-ins are
+	# loaded, but are sorted by their filename. This means the drop-ins sorted
+	# last have highest priority for non-list options.
+	# Thus we must ensure our drop-in is sorted after the one shipped with
+	# SteamOS 3.8, hence the "z-" prefix.
+
 	local dropin_dir="/etc/systemd/sleep.conf.d"
-	local dropin_file="$dropin_dir/hibernate-after-sleep.conf"
+	local dropin_file="$dropin_dir/z-hibernate-after-sleep.conf"
 	mkdir -p "$dropin_dir"
 	echo "[Sleep]
 AllowSuspend=yes

@@ -32,8 +32,8 @@ systemctl disable --now steamos-extension-hibernate-after-sleep-fix-bluetooth.se
 systemctl disable --now steamos-extension-hibernate-after-sleep-mark-boot-good.service
 
 echo "Removing suspend link..."
-if [[ -L "/etc/systemd/system/steamos-extension-hibernate-after-sleep-install.service" ]]; then
-	rm -f /etc/systemd/system/steamos-extension-hibernate-after-sleep-install.service
+if [[ -L "/etc/systemd/system/systemd-suspend.service" ]]; then
+	rm -f /etc/systemd/system/systemd-suspend.service
 	echo "  Removed"
 else
 	echo "  Not found (skipping)"
@@ -42,7 +42,7 @@ fi
 
 echo ""
 echo "Step 2: Removing sleep configuration..."
-sleep_conf_file="/etc/systemd/sleep.conf.d/hibernate-after-sleep.conf"
+sleep_conf_file="/etc/systemd/sleep.conf.d/z-hibernate-after-sleep.conf"
 if [[ -f $sleep_conf_file ]]; then
 	rm -f $sleep_conf_file
 	echo "  Removed"
